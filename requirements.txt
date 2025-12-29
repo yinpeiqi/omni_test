@@ -1,0 +1,5 @@
+soundfile
+torch
+torchvision
+datasets==3.0.0
+qwen_omni_utils

@@ -37,23 +37,7 @@ except ImportError:
     print("Warning: decord not found. Video test may fail.")
 
 def get_omni_model(model_path, workspace_dir, args):
-    # Add vllm-omni to path
-    # Assuming the script is in /workspace/pq/omni_test
-    # and vllm-omni is in /workspace/pq/test/vllm-omni
-    # We use the path logic from test_audio_vllm.py
-    VLLM_OMNI_PATH = os.path.abspath(os.path.join(workspace_dir, "vllm-omni"))
-    if os.path.exists(VLLM_OMNI_PATH):
-        print(f"VLLM_OMNI_PATH: {VLLM_OMNI_PATH}")
-        if VLLM_OMNI_PATH not in sys.path:
-            sys.path.append(VLLM_OMNI_PATH)
-    else:
-        print(f"Warning: vllm-omni path not found at {VLLM_OMNI_PATH}")
-
-    try:
-        from vllm_omni.entrypoints.omni import Omni
-    except ImportError:
-        print("Error: Could not import vllm_omni. Make sure the path is correct.")
-        sys.exit(1)
+    from vllm_omni.entrypoints.omni import Omni
 
     # Determine log path based on which test is enabled
     if args.audio:
@@ -65,13 +49,13 @@ def get_omni_model(model_path, workspace_dir, args):
     else:
         log_subdir = "audio_test"  # fallback
     
-    log_file = os.path.join(workspace_dir, f"omni_test/{log_subdir}/results/vllm_stats")
+    log_file = os.path.join(workspace_dir, f"{log_subdir}/results_vllm/vllm_stats")
     # Ensure directory exists
     os.makedirs(os.path.dirname(log_file), exist_ok=True)
     
     # We need the config path. In test_audio_vllm.py it assumes it is in the same dir as the script.
     # We will assume this script is in omni_test/
-    config_path = os.path.join(workspace_dir, "omni_test/qwen3_omni_moe.yaml")
+    config_path = os.path.join(workspace_dir, "qwen3_omni_moe.yaml")
     
     print(f"Initializing Omni model from {model_path}...")
     omni_llm = Omni(
@@ -137,20 +121,18 @@ def load_video_frames(video_path, max_frames=16):
 
 def run_audio_test_vllm(omni_llm, sampling_params_list, num_samples, workspace_dir, args):
     from datasets import load_dataset
-    try:
-        sys.path.append(os.path.join(workspace_dir, "omni_test"))
-        from prompts import DEFAULT_AUDIO_PROMPT
-    except ImportError:
-        DEFAULT_AUDIO_PROMPT = "Transcribe this audio."
+    sys.path.append(workspace_dir)
+    from prompts import DEFAULT_AUDIO_PROMPT
 
     print("\n" + "=" * 60)
     print("Running Audio Workload Test (vLLM)")
+    print("Using Prompt: ", DEFAULT_AUDIO_PROMPT)
     print("=" * 60)
     
-    test_dir = os.path.join(workspace_dir, "omni_test/audio_test")
+    test_dir = os.path.join(workspace_dir, "audio_test")
     data_dir = os.path.join(test_dir, "data")
-    output_dir = os.path.join(test_dir, "outputs_vllm")
-    results_dir = os.path.join(test_dir, "results")
+    results_dir = os.path.join(test_dir, "results_vllm")
+    output_dir = os.path.join(results_dir, "outputs")
     
     os.makedirs(data_dir, exist_ok=True)
     os.makedirs(output_dir, exist_ok=True)
@@ -273,19 +255,20 @@ def run_audio_test_vllm(omni_llm, sampling_params_list, num_samples, workspace_d
 def run_video_test_vllm(omni_llm, sampling_params_list, num_samples, workspace_dir, args):
     from datasets import load_dataset
     try:
-        sys.path.append(os.path.join(workspace_dir, "omni_test"))
+        sys.path.append(workspace_dir)
         from prompts import DEFAULT_VIDEO_PROMPT
     except ImportError:
         DEFAULT_VIDEO_PROMPT = "Describe the video."
 
     print("\n" + "=" * 60)
     print("Running Video Workload Test (vLLM)")
+    print("Using Prompt: ", DEFAULT_VIDEO_PROMPT)
     print("=" * 60)
     
-    test_dir = os.path.join(workspace_dir, "omni_test/video_test")
+    test_dir = os.path.join(workspace_dir, "video_test")
     data_dir = os.path.join(test_dir, "data")
-    output_dir = os.path.join(test_dir, "outputs_vllm")
-    results_dir = os.path.join(test_dir, "results")
+    results_dir = os.path.join(test_dir, "results_vllm")
+    output_dir = os.path.join(results_dir, "outputs")
     
     os.makedirs(data_dir, exist_ok=True)
     os.makedirs(output_dir, exist_ok=True)
@@ -418,21 +401,18 @@ def run_video_test_vllm(omni_llm, sampling_params_list, num_samples, workspace_d
 
 def run_visual_test_vllm(omni_llm, sampling_params_list, num_samples, workspace_dir, args):
     from datasets import load_dataset
-    try:
-        sys.path.append(os.path.join(workspace_dir, "omni_test"))
-        from prompts import DEFAULT_VISUAL_PROMPT
-    except ImportError:
-        DEFAULT_VISUAL_PROMPT = "Describe this image. Don't output any '*' in the text."
+    sys.path.append(workspace_dir)
+    from prompts import DEFAULT_VISUAL_PROMPT
 
-    # DEFAULT_VISUAL_PROMPT = "Describe this image. Don't output any '*' in the text."
     print("\n" + "=" * 60)
     print("Running Visual Workload Test (vLLM)")
+    print("Using Prompt: ", DEFAULT_VISUAL_PROMPT)
     print("=" * 60)
     
-    test_dir = os.path.join(workspace_dir, "omni_test/visual_test")
+    test_dir = os.path.join(workspace_dir, "visual_test")
     data_dir = os.path.join(test_dir, "data")
-    output_dir = os.path.join(test_dir, "outputs_vllm")
-    results_dir = os.path.join(test_dir, "results")
+    results_dir = os.path.join(test_dir, "results_vllm")
+    output_dir = os.path.join(results_dir, "outputs")
     
     os.makedirs(data_dir, exist_ok=True)
     os.makedirs(output_dir, exist_ok=True)
@@ -561,7 +541,7 @@ def main():
         return
 
     seed_everything(42)
-    workspace_dir = "/workspace/pqbuild"
+    workspace_dir = os.getcwd()
     
     # Initialize Omni Model
     omni_llm = get_omni_model(args.model_path, workspace_dir, args)

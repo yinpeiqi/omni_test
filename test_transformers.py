@@ -120,15 +120,16 @@ def process_and_save_sample(
     with open(result_json_path, "w", encoding="utf-8") as f:
         json.dump(results_list, f, ensure_ascii=False, indent=4)
 
-def run_audio_test(model, processor, num_samples, workspace_dir):
+def run_audio_test(model, processor, num_samples, workspace_dir, gpu_count):
     print("\n" + "=" * 60)
     print("Running Audio Workload Test")
+    print("Using Prompt: ", DEFAULT_AUDIO_PROMPT)
     print("=" * 60)
     
-    test_dir = os.path.join(workspace_dir, "omni_test/audio_test")
+    test_dir = os.path.join(workspace_dir, "audio_test")
     data_dir = os.path.join(test_dir, "data")
-    output_dir = os.path.join(test_dir, "outputs")
-    results_dir = os.path.join(test_dir, "results")
+    results_dir = os.path.join(test_dir, f"results_xfmrs_{gpu_count}gpu")
+    output_dir = os.path.join(results_dir, "outputs")
     
     os.makedirs(data_dir, exist_ok=True)
     os.makedirs(output_dir, exist_ok=True)
@@ -188,15 +189,16 @@ def run_audio_test(model, processor, num_samples, workspace_dir):
             reference_data=reference_data
         )
 
-def run_video_test(model, processor, num_samples, workspace_dir):
+def run_video_test(model, processor, num_samples, workspace_dir, gpu_count):
     print("\n" + "=" * 60)
     print("Running Video Workload Test")
+    print("Using Prompt: ", DEFAULT_VIDEO_PROMPT)
     print("=" * 60)
     
-    test_dir = os.path.join(workspace_dir, "omni_test/video_test")
+    test_dir = os.path.join(workspace_dir, "video_test")
     data_dir = os.path.join(test_dir, "data")
-    output_dir = os.path.join(test_dir, "outputs")
-    results_dir = os.path.join(test_dir, "results")
+    results_dir = os.path.join(test_dir, f"results_xfmrs_{gpu_count}gpu")
+    output_dir = os.path.join(results_dir, "outputs")
     
     os.makedirs(data_dir, exist_ok=True)
     os.makedirs(output_dir, exist_ok=True)
@@ -258,15 +260,16 @@ def run_video_test(model, processor, num_samples, workspace_dir):
             reference_data=reference_data
         )
 
-def run_visual_test(model, processor, num_samples, workspace_dir):
+def run_visual_test(model, processor, num_samples, workspace_dir, gpu_count):
     print("\n" + "=" * 60)
     print("Running Visual Workload Test")
+    print("Using Prompt: ", DEFAULT_VISUAL_PROMPT)
     print("=" * 60)
     
-    test_dir = os.path.join(workspace_dir, "omni_test/visual_test")
+    test_dir = os.path.join(workspace_dir, "visual_test")
     data_dir = os.path.join(test_dir, "data")
-    output_dir = os.path.join(test_dir, "outputs")
-    results_dir = os.path.join(test_dir, "results")
+    results_dir = os.path.join(test_dir, f"results_xfmrs_{gpu_count}gpu")
+    output_dir = os.path.join(results_dir, "outputs")
     
     os.makedirs(data_dir, exist_ok=True)
     os.makedirs(output_dir, exist_ok=True)
@@ -326,34 +329,38 @@ def main():
     parser.add_argument("--image", action="store_true", help="Run visual test")
     parser.add_argument("--num_samples", type=int, default=10, help="Number of samples to run")
     parser.add_argument("--model_path", type=str, default="Qwen/Qwen3-Omni-30B-A3B-Instruct", help="Path to model")
+    parser.add_argument("--gpu", type=int, default=1, help="Number of GPUs to use")
     
     args = parser.parse_args()
+    
+    if args.gpu is not None:
+        os.environ["CUDA_VISIBLE_DEVICES"] = ",".join(map(str, range(args.gpu)))
     
     if not (args.audio or args.video or args.image):
         print("Please specify at least one test mode: --audio, --video, or --image")
         return
 
     seed_everything(42)
-    workspace_dir = "/workspace/pqbuild"
+    workspace_dir = os.getcwd()
     
     print("\nLoading model and processor...")
     model = Qwen3OmniMoeForConditionalGenerationWithLogging.from_pretrained(
         args.model_path,
         dtype="auto",
-        device_map="auto",
+        device_map="auto" if args.gpu > 1 else "cuda:0",
         attn_implementation="flash_attention_2",
     )
     processor = Qwen3OmniMoeProcessor.from_pretrained(args.model_path)
     print("Model loaded successfully!")
     
     if args.audio:
-        run_audio_test(model, processor, args.num_samples, workspace_dir)
+        run_audio_test(model, processor, args.num_samples, workspace_dir, args.gpu)
         
     if args.video:
-        run_video_test(model, processor, args.num_samples, workspace_dir)
+        run_video_test(model, processor, args.num_samples, workspace_dir, args.gpu)
         
     if args.image:
-        run_visual_test(model, processor, args.num_samples, workspace_dir)
+        run_visual_test(model, processor, args.num_samples, workspace_dir, args.gpu)
 
     print("\nAll requested tests completed!")
 

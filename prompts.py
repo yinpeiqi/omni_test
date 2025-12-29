@@ -37,7 +37,7 @@ AUDIO_MUSIC_ANALYSIS_PROMPTS = {
 
 # Visual Description
 VISUAL_DESCRIPTION_PROMPTS = {
-    "simple": "Describe this image.",
+    "simple": "Describe this image. Write a single concise paragraph, with no lists or special formatting characters such as asterisks or emojis, and keep the description under 250 words.",
     "detailed": "Describe this image in detail.",
 }
 
@@ -63,7 +63,7 @@ VISUAL_GROUNDING_PROMPTS = {
 
 # Video Description
 VIDEO_DESCRIPTION_PROMPTS = {
-    "simple": "Describe the video.",
+    "simple": "Describe the video. Write a single concise paragraph, with no lists or special formatting characters such as asterisks or emojis, and keep the description under 250 words.",
     "detailed": "Describe the video in detail.",
 }
 
