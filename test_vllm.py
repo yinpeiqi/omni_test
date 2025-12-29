@@ -61,7 +61,6 @@ def get_omni_model(model_path, workspace_dir, args):
     omni_llm = Omni(
         model=model_path,
         stage_configs_path=config_path,
-        log_file=log_file,
         log_stats=True,
     )
     return omni_llm
@@ -556,7 +555,18 @@ def main():
     if args.image:
         run_visual_test_vllm(omni_llm, sampling_params_list, args.num_samples, workspace_dir, args)
 
+    # Determine log path based on which test is enabled
+    if args.audio:
+        log_subdir = "audio_test"
+    elif args.image:
+        log_subdir = "visual_test"
+    elif args.video:
+        log_subdir = "video_test"
+    
+    log_file = os.path.join(workspace_dir, f"{log_subdir}/results_vllm/vllm_stats.json")
+    omni_llm.metrics.save_metrics(log_file)
     print("\nAll requested tests completed!")
+    omni_llm.close()
 
 if __name__ == "__main__":
     main()
