@@ -63,10 +63,28 @@ def analyze_performance_vllm(results_dir, output_dir=None):
     
     # Process stats data
     # Keys are like "0_uuid", "1_uuid"
-    sample_count = len(stats_data)
+    # sample_count = len(stats_data)  # We will calculate valid samples
     
+    valid_count = 0
+    fail_count = 0
+    excluded_indices = set()
+
     for key, sample_stats in stats_data.items():
+        # Check if Stage 1 failed (4096 tokens)
         stages = sample_stats.get("stages", {})
+        stage_1_info = stages.get("1", {}) # Stage 1 is Talker
+        if stage_1_info.get("num_tokens_out", 0) == 4096:
+            fail_count += 1
+            # Extract index from key (e.g., "0_uuid")
+            try:
+                idx = int(key.split('_')[0])
+                excluded_indices.add(idx)
+            except:
+                pass # If key format is unexpected, we might not be able to link to audio, but we exclude from stats
+            continue
+        
+        valid_count += 1
+        
         for stage_id, stage_info in stages.items():
             s_time = stage_info.get("stage_gen_time_ms", 0)
             s_tokens = stage_info.get("num_tokens_out", 0)
@@ -79,6 +97,8 @@ def analyze_performance_vllm(results_dir, output_dir=None):
             stage_stats[stage_id]['time'] += s_time
             stage_stats[stage_id]['tokens'] += s_tokens
             stage_stats[stage_id]['count'] += 1
+    
+    sample_count = valid_count
 
     # Calculate Audio Duration from wav files
     total_audio_duration = 0
@@ -87,8 +107,12 @@ def analyze_performance_vllm(results_dir, output_dir=None):
     # main_data has "sample_id"
     for sample in main_data:
         sample_id = sample.get('sample_id')
-        if sample_id is not None and os.path.exists(output_dir):
-            wav_filename = f"sample_{sample_id}_audio.wav"
+        if sample_id is not None:
+            if sample_id in excluded_indices:
+                continue
+
+            if os.path.exists(output_dir):
+                wav_filename = f"sample_{sample_id}_audio.wav"
             wav_path = os.path.join(output_dir, wav_filename)
             
             if os.path.exists(wav_path):
@@ -110,10 +134,12 @@ def analyze_performance_vllm(results_dir, output_dir=None):
 
     print("-" * 50)
     print(f"Analysis for {results_dir}")
-    print(f"Number of Samples: {sample_count}")
+    print(f"Total Samples: {valid_count + fail_count}")
+    print(f"Valid Samples: {valid_count}")
+    print(f"Failed Samples: {fail_count} (Stage 1 output = 4096 tokens)")
     print(f"Total Batch Time: {total_time_batch:.4f} s")
-    print(f"Total Tokens Generated: {total_tokens}")
-    print(f"Total Audio Duration: {total_audio_duration:.4f} s")
+    print(f"Total Tokens Generated (Valid): {total_tokens}")
+    print(f"Total Audio Duration (Valid): {total_audio_duration:.4f} s")
     
     # print("\nThroughput:")
     # print(f"  {throughput:.2f} tokens/s")

@@ -60,8 +60,8 @@ def analyze_performance(file_path, output_dir=None):
     total_audio_duration = 0
     total_rtf_jct = 0
     
-    max_sample = 10
-    data = data[:max_sample]
+    # max_sample = 10
+    # data = data[:max_sample]
     count = len(data)
 
     for sample in data:
