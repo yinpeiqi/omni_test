@@ -55,8 +55,13 @@ def get_omni_model(model_path, workspace_dir, args):
     
     # We need the config path. In test_audio_vllm.py it assumes it is in the same dir as the script.
     # We will assume this script is in omni_test/
-    config_path = os.path.join(workspace_dir, "qwen3_omni_moe.yaml")
-    
+    if args.model_path == "Qwen/Qwen3-Omni-30B-A3B-Instruct":
+        config_path = os.path.join(workspace_dir, "qwen3_omni_moe.yaml")
+    elif args.model_path == "Qwen/Qwen2.5-Omni-7B":
+        config_path = os.path.join(workspace_dir, "qwen2_5_omni.yaml")
+    else:
+        raise ValueError(f"Unsupported model path: {args.model_path}")
+
     print(f"Initializing Omni model from {model_path}...")
     omni_llm = Omni(
         model=model_path,
@@ -80,9 +85,9 @@ def get_sampling_params():
     )
 
     talker_sampling_params = SamplingParams(
-        temperature=0.0,
+        temperature=0.9,
         top_p=1.0,
-        top_k=-1,
+        top_k=50,
         max_tokens=4096,
         seed=SEED,
         detokenize=False,
@@ -167,12 +172,20 @@ def run_audio_test_vllm(omni_llm, sampling_params_list, num_samples, workspace_d
         
         # Construct prompt
         prompt_text = DEFAULT_AUDIO_PROMPT
-        prompt_str = (
-            f"<|im_start|>system\n{default_system}<|im_end|>\n"
-            "<|im_start|>user\n<|audio_start|><|audio_pad|><|audio_end|>"
-            f"{prompt_text}<|im_end|>\n"
-            f"<|im_start|>assistant\n"
-        )
+        if args.model_path == "Qwen/Qwen3-Omni-30B-A3B-Instruct":
+            prompt_str = (
+                f"<|im_start|>system\n{default_system}<|im_end|>\n"
+                "<|im_start|>user\n<|audio_start|><|audio_pad|><|audio_end|>"
+                f"{prompt_text}<|im_end|>\n"
+                f"<|im_start|>assistant\n"
+            )
+        elif args.model_path == "Qwen/Qwen2.5-Omni-7B":
+            prompt_str = (
+                f"<|im_start|>system\n{default_system}<|im_end|>\n"
+                "<|im_start|>user\n<|audio_bos|><|AUDIO|><|audio_eos|>"
+                f"{prompt_text}<|im_end|>\n"
+                f"<|im_start|>assistant\n"
+            )
         
         inputs = {
             "prompt": prompt_str,
@@ -246,7 +259,11 @@ def run_audio_test_vllm(omni_llm, sampling_params_list, num_samples, workspace_d
         r["output_decode_time"] = avg_time
         r["total_time_batch"] = total_time
 
-    result_json_path = os.path.join(results_dir, "Qwen3-Omni_vllm_audio.json")
+    if args.model_path == "Qwen/Qwen3-Omni-30B-A3B-Instruct":
+        result_json_path = os.path.join(results_dir, "Qwen3-Omni_vllm_audio.json")
+    elif args.model_path == "Qwen/Qwen2.5-Omni-7B":
+        result_json_path = os.path.join(results_dir, "Qwen2.5-Omni_vllm_audio.json")
+
     with open(result_json_path, "w", encoding="utf-8") as f:
         json.dump(results, f, ensure_ascii=False, indent=4)
     print(f"Results saved to {result_json_path}")
@@ -306,12 +323,21 @@ def run_video_test_vllm(omni_llm, sampling_params_list, num_samples, workspace_d
             continue
 
         prompt_text = DEFAULT_VIDEO_PROMPT
-        prompt_str = (
-            f"<|im_start|>system\n{default_system}<|im_end|>\n"
-            "<|im_start|>user\n<|vision_start|><|video_pad|><|vision_end|>"
-            f"{prompt_text}<|im_end|>\n"
-            f"<|im_start|>assistant\n"
-        )
+        if args.model_path == "Qwen/Qwen3-Omni-30B-A3B-Instruct":
+            prompt_str = (
+                f"<|im_start|>system\n{default_system}<|im_end|>\n"
+                "<|im_start|>user\n<|vision_start|><|video_pad|><|vision_end|>"
+                f"{prompt_text}<|im_end|>\n"
+                f"<|im_start|>assistant\n"
+            )
+        elif args.model_path == "Qwen/Qwen2.5-Omni-7B":
+            prompt_str = (
+                f"<|im_start|>system\n{default_system}<|im_end|>\n"
+                "<|im_start|>user\n<|vision_bos|><|VIDEO|><|vision_eos|>"
+                f"{prompt_text}<|im_end|>\n"
+                f"<|im_start|>assistant\n"
+            )
+
         
         inputs = {
             "prompt": prompt_str,
@@ -393,7 +419,12 @@ def run_video_test_vllm(omni_llm, sampling_params_list, num_samples, workspace_d
         r["output_decode_time"] = avg_time
         r["total_time_batch"] = total_time
 
-    result_json_path = os.path.join(results_dir, "Qwen3-Omni_vllm_video.json")
+    
+    if args.model_path == "Qwen/Qwen3-Omni-30B-A3B-Instruct":
+        result_json_path = os.path.join(results_dir, "Qwen3-Omni_vllm_video.json")
+    elif args.model_path == "Qwen/Qwen2.5-Omni-7B":
+        result_json_path = os.path.join(results_dir, "Qwen2.5-Omni_vllm_video.json")
+
     with open(result_json_path, "w", encoding="utf-8") as f:
         json.dump(results, f, ensure_ascii=False, indent=4)
     print(f"Results saved to {result_json_path}")
@@ -443,12 +474,20 @@ def run_visual_test_vllm(omni_llm, sampling_params_list, num_samples, workspace_
             image = image.convert("RGB")
 
         prompt_text = DEFAULT_VISUAL_PROMPT
-        prompt_str = (
-            f"<|im_start|>system\n{default_system}<|im_end|>\n"
-            "<|im_start|>user\n<|vision_start|><|image_pad|><|vision_end|>"
-            f"{prompt_text}<|im_end|>\n"
-            f"<|im_start|>assistant\n"
-        )
+        if args.model_path == "Qwen/Qwen3-Omni-30B-A3B-Instruct":
+            prompt_str = (
+                f"<|im_start|>system\n{default_system}<|im_end|>\n"
+                "<|im_start|>user\n<|vision_start|><|image_pad|><|vision_end|>"
+                f"{prompt_text}<|im_end|>\n"
+                f"<|im_start|>assistant\n"
+            )
+        elif args.model_path == "Qwen/Qwen2.5-Omni-7B":
+            prompt_str = (
+                f"<|im_start|>system\n{default_system}<|im_end|>\n"
+                "<|im_start|>user\n<|vision_bos|><|IMAGE|><|vision_eos|>"
+                f"{prompt_text}<|im_end|>\n"
+                f"<|im_start|>assistant\n"
+            )
         
         inputs = {
             "prompt": prompt_str,
@@ -520,7 +559,11 @@ def run_visual_test_vllm(omni_llm, sampling_params_list, num_samples, workspace_
         r["output_decode_time"] = avg_time
         r["total_time_batch"] = total_time
 
-    result_json_path = os.path.join(results_dir, "Qwen3-Omni_vllm_image.json")
+    if args.model_path == "Qwen/Qwen3-Omni-30B-A3B-Instruct":
+        result_json_path = os.path.join(results_dir, "Qwen3-Omni_vllm_image.json")
+    elif args.model_path == "Qwen/Qwen2.5-Omni-7B":
+        result_json_path = os.path.join(results_dir, "Qwen2.5-Omni_vllm_image.json")
+
     with open(result_json_path, "w", encoding="utf-8") as f:
         json.dump(results, f, ensure_ascii=False, indent=4)
     print(f"Results saved to {result_json_path}")
@@ -564,7 +607,9 @@ def main():
         log_subdir = "video_test"
     
     log_file = os.path.join(workspace_dir, f"{log_subdir}/results_vllm/vllm_stats.json")
-    omni_llm.metrics.save_metrics(log_file)
+    
+    with open(log_file, "w", encoding="utf-8") as f:
+        json.dump(omni_llm.metrics.per_request, f, indent=2, ensure_ascii=False)
     print("\nAll requested tests completed!")
     omni_llm.close()
 

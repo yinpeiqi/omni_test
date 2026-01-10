@@ -13,8 +13,9 @@ import torch
 import random
 import numpy as np
 from datasets import load_dataset
-from transformers import Qwen3OmniMoeProcessor, set_seed
+from transformers import Qwen3OmniMoeProcessor, Qwen2_5OmniProcessor, set_seed
 from transformers_qwen3_omni import Qwen3OmniMoeForConditionalGenerationWithLogging
+from transformers_qwen2_5_omni import Qwen2_5OmniForConditionalGenerationWithLogging
 from qwen_omni_utils import process_mm_info
 from prompts import DEFAULT_AUDIO_PROMPT, DEFAULT_VIDEO_PROMPT, DEFAULT_VISUAL_PROMPT
 
@@ -58,26 +59,36 @@ def process_and_save_sample(
     print("Generating response...")
     generate_result = model.generate(
         **inputs,
-        speaker="Ethan",
+        # speaker="Ethan",
         thinker_return_dict_in_generate=True,
         use_audio_in_video=False,
         do_sample=False,
         temperature=0.0,
     )
     
-    text_ids, audio_output, stats = generate_result
-    
+    try:
+        text_ids, audio_output, stats = generate_result
+    except:
+        text_ids, audio_output = generate_result
+
     # Decode
     time_decode_start = time.time()
-    text_output = processor.batch_decode(
-        text_ids.sequences[:, inputs["input_ids"].shape[1]:],
-        skip_special_tokens=True,
-        clean_up_tokenization_spaces=False
-    )[0]
+    if isinstance(text_ids, torch.Tensor):
+        text_output = processor.batch_decode(
+            text_ids[:, inputs["input_ids"].shape[1]:],
+            skip_special_tokens=True,
+            clean_up_tokenization_spaces=False
+        )[0]
+    else:
+        text_output = processor.batch_decode(
+            text_ids.sequences[:, inputs["input_ids"].shape[1]:],
+            skip_special_tokens=True,
+            clean_up_tokenization_spaces=False
+        )[0]
     output_decode_time = time.time() - time_decode_start
     
     print(f"Text output: {text_output}")
-    
+
     # Save Text Output
     text_output_path = os.path.join(output_dir, f"sample_{sample_id}_text.txt")
     with open(text_output_path, "w", encoding="utf-8") as f:
@@ -139,8 +150,12 @@ def run_audio_test(model, processor, num_samples, workspace_dir, gpu_count):
     dataset = load_dataset("librispeech_asr", "clean", split=f"test[:{num_samples}]", trust_remote_code=True)
     
     results = []
-    result_json_path = os.path.join(results_dir, "Qwen3-Omni_transformers_audio.json")
     
+    if isinstance(model, Qwen3OmniMoeForConditionalGenerationWithLogging):
+        result_json_path = os.path.join(results_dir, "Qwen3-Omni_transformers_audio.json")
+    elif isinstance(model, Qwen2_5OmniForConditionalGenerationWithLogging):
+        result_json_path = os.path.join(results_dir, "Qwen2.5-Omni_transformers_audio.json")
+
     # Pre-save audio
     for i in range(min(len(dataset), num_samples)):
         sample = dataset[i]
@@ -208,8 +223,11 @@ def run_video_test(model, processor, num_samples, workspace_dir, gpu_count):
     dataset = load_dataset("sayakpaul/ucf101-subset", split=f"train[:{num_samples}]", trust_remote_code=True)
     
     results = []
-    result_json_path = os.path.join(results_dir, "Qwen3-Omni_transformers_video.json")
-    
+    if isinstance(model, Qwen3OmniMoeForConditionalGenerationWithLogging):
+        result_json_path = os.path.join(results_dir, "Qwen3-Omni_transformers_video.json")
+    elif isinstance(model, Qwen2_5OmniForConditionalGenerationWithLogging):
+        result_json_path = os.path.join(results_dir, "Qwen2.5-Omni_transformers_video.json")
+
     # Pre-save video
     for i in range(min(len(dataset), num_samples)):
         sample = dataset[i]
@@ -227,6 +245,12 @@ def run_video_test(model, processor, num_samples, workspace_dir, gpu_count):
         prompt = DEFAULT_VIDEO_PROMPT
         
         conversation = [
+            {
+                "role": "system",
+                "content": [
+                    {"type": "text", "text": "You are Qwen, a virtual human developed by the Qwen Team, Alibaba Group, capable of perceiving auditory and visual inputs, as well as generating text and speech."}
+                ],
+            },
             {
                 "role": "user",
                 "content": [
@@ -279,8 +303,11 @@ def run_visual_test(model, processor, num_samples, workspace_dir, gpu_count):
     dataset = load_dataset("food101", split=f"validation[:{num_samples}]")
     
     results = []
-    result_json_path = os.path.join(results_dir, "Qwen3-Omni_transformers_image.json")
-    
+    if isinstance(model, Qwen3OmniMoeForConditionalGenerationWithLogging):
+        result_json_path = os.path.join(results_dir, "Qwen3-Omni_transformers_image.json")
+    elif isinstance(model, Qwen2_5OmniForConditionalGenerationWithLogging):
+        result_json_path = os.path.join(results_dir, "Qwen2.5-Omni_transformers_image.json")
+
     # Pre-save images
     for i in range(min(len(dataset), num_samples)):
         sample = dataset[i]
@@ -297,6 +324,12 @@ def run_visual_test(model, processor, num_samples, workspace_dir, gpu_count):
         prompt = DEFAULT_VISUAL_PROMPT
         
         conversation = [
+            {
+                "role": "system",
+                "content": [
+                    {"type": "text", "text": "You are Qwen, a virtual human developed by the Qwen Team, Alibaba Group, capable of perceiving auditory and visual inputs, as well as generating text and speech."}
+                ],
+            },
             {
                 "role": "user",
                 "content": [
@@ -344,15 +377,29 @@ def main():
     workspace_dir = os.getcwd()
     
     print("\nLoading model and processor...")
-    model = Qwen3OmniMoeForConditionalGenerationWithLogging.from_pretrained(
-        args.model_path,
-        dtype="auto",
-        device_map="auto" if args.gpu > 1 else "cuda:0",
-        attn_implementation="flash_attention_2",
-    )
-    processor = Qwen3OmniMoeProcessor.from_pretrained(args.model_path)
+    if args.model_path == "Qwen/Qwen3-Omni-30B-A3B-Instruct":
+        model = Qwen3OmniMoeForConditionalGenerationWithLogging.from_pretrained(
+            args.model_path,
+            dtype="auto",
+            device_map="auto" if args.gpu > 1 else "cuda:0",
+            attn_implementation="flash_attention_2",
+        )
+        processor = Qwen3OmniMoeProcessor.from_pretrained(args.model_path)
+        print("Loaded Qwen3-Omni model and processor.")
+    elif args.model_path == "Qwen/Qwen2.5-Omni-7B":
+        model = Qwen2_5OmniForConditionalGenerationWithLogging.from_pretrained(
+            args.model_path,
+            dtype="auto",
+            device_map="auto" if args.gpu > 1 else "cuda:0",
+            attn_implementation="flash_attention_2",
+        )
+        processor = Qwen2_5OmniProcessor.from_pretrained(args.model_path)
+        print("Loaded Qwen2.5-Omni model and processor.")
+    else:
+        print(f"Unsupported model path: {args.model_path}")
+        return
     print("Model loaded successfully!")
-    
+
     if args.audio:
         run_audio_test(model, processor, args.num_samples, workspace_dir, args.gpu)
         
