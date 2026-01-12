@@ -70,40 +70,69 @@ def get_omni_model(model_path, workspace_dir, args):
     )
     return omni_llm
 
-def get_sampling_params():
+def get_sampling_params(args):
     from vllm import SamplingParams
     SEED = 42
     
-    thinker_sampling_params = SamplingParams(
-        temperature=0.0,
-        top_p=1.0,
-        top_k=-1,
-        max_tokens=1200,
-        repetition_penalty=1.05,
-        logit_bias={},
-        seed=SEED,
-    )
+    if "Qwen3-Omni" in args.model_path:
+        thinker_sampling_params = SamplingParams(
+            temperature=0.0,
+            top_p=1.0,
+            top_k=-1,
+            max_tokens=1200,
+            repetition_penalty=1.05,
+            logit_bias={},
+            seed=SEED,
+        )
 
-    talker_sampling_params = SamplingParams(
-        temperature=0.9,
-        top_p=1.0,
-        top_k=50,
-        max_tokens=4096,
-        seed=SEED,
-        detokenize=False,
-        repetition_penalty=1.05,
-        stop_token_ids=[2150],  # TALKER_CODEC_EOS_TOKEN_ID
-    )
-
-    code2wav_sampling_params = SamplingParams(
-        temperature=0.0,
-        top_p=1.0,
-        top_k=-1,
-        max_tokens=4096 * 16,
-        seed=SEED,
-        detokenize=True,
-        repetition_penalty=1.1,
-    )
+        talker_sampling_params = SamplingParams(
+            temperature=0.9,
+            top_p=1.0,
+            top_k=50,
+            max_tokens=4096,
+            seed=SEED,
+            detokenize=False,
+            repetition_penalty=1.05,
+            stop_token_ids=[2150],  # TALKER_CODEC_EOS_TOKEN_ID
+        )
+        code2wav_sampling_params = SamplingParams(
+            temperature=0.0,
+            top_p=1.0,
+            top_k=-1,
+            max_tokens=4096 * 16,
+            seed=SEED,
+            detokenize=True,
+            repetition_penalty=1.1,
+        )
+    elif "Qwen2.5-Omni" in args.model_path:
+        thinker_sampling_params = SamplingParams(
+            temperature=0.0,  # Deterministic - no randomness
+            top_p=1.0,  # Disable nucleus sampling
+            top_k=-1,  # Disable top-k sampling
+            max_tokens=2048,
+            seed=SEED,  # Fixed seed for sampling
+            detokenize=True,
+            repetition_penalty=1.1,
+        )
+        talker_sampling_params = SamplingParams(
+            temperature=0.9,
+            top_p=0.8,
+            top_k=40,
+            max_tokens=2048,
+            seed=SEED,  # Fixed seed for sampling
+            detokenize=True,
+            repetition_penalty=1.05,
+            stop_token_ids=[8294],
+        )
+        code2wav_sampling_params = SamplingParams(
+            temperature=0.0,  # Deterministic - no randomness
+            top_p=1.0,  # Disable nucleus sampling
+            top_k=-1,  # Disable top-k sampling
+            max_tokens=2048,
+            seed=SEED,  # Fixed seed for sampling
+            detokenize=True,
+            repetition_penalty=1.1,
+        )
 
     return [
         thinker_sampling_params,
@@ -587,7 +616,7 @@ def main():
     
     # Initialize Omni Model
     omni_llm = get_omni_model(args.model_path, workspace_dir, args)
-    sampling_params_list = get_sampling_params()
+    sampling_params_list = get_sampling_params(args)
     
     if args.audio:
         run_audio_test_vllm(omni_llm, sampling_params_list, args.num_samples, workspace_dir, args)
